@@ -1,0 +1,14 @@
+{
+  "title": "selection_sort",
+  "language": "cpp",
+  "problem": "Inferred: sorting, in-place swap, nested loops (auto-inferred from code)",
+  "approach": "Heuristic summary: sorting, in-place swap, nested loops\n\nDetected nested loops → likely O(n^2) behavior for main pass.",
+  "pseudocode": "for i from 0 to n-2:\n    minIndex = i\n    for j from i+1 to n-1:\n        if arr[j] < arr[minIndex]:\n            minIndex = j\n    swap(arr[i], arr[minIndex])",
+  "complexity": "Time: O(n^2) (heuristic). Space: O(1) or as used in code.",
+  "edgeCases": [
+    "empty input",
+    "single element",
+    "duplicates"
+  ],
+  "code": "#include <iostream>\r\n#include <vector>\r\nusing namespace std;\r\n\r\nint main()\r\n{\r\n    int t;\r\n    cin >> t;\r\n    while (t--)\r\n    {\r\n        int n;\r\n        cin >> n;\r\n        vector<int> vec(n);\r\n\r\n        for (int i = 0; i < n; i++)\r\n        {\r\n            cin >> vec[i];\r\n        }\r\n\r\n        // Selection sort\r\n        for (int i = 0; i < n - 1; i++)\r\n        {\r\n            int minIndex = i;\r\n            for (int j = i + 1; j < n; j++)\r\n            { // Fixed: j++ instead of i++\r\n                if (vec[j] < vec[minIndex])\r\n                {\r\n                    minIndex = j;\r\n                }\r\n            }\r\n            int temp = vec[i];\r\n            vec[i] = vec[minIndex];\r\n            vec[minIndex] = temp;\r\n        }\r\n\r\n        // Print all elements\r\n        for (int i = 0; i < n; i++)\r\n        { // Fixed: changed to i < n\r\n            cout << vec[i];\r\n            if (i < n - 1)\r\n                cout << \" \";\r\n        }\r\n        cout << endl;\r\n    }\r\n    return 0;\r\n}"
+}
