@@ -1,34 +1,21 @@
-// src/generate.js
+
 import path from "path";
 
 const MAX_CODE_CHARS = 20000;
 
-/**
- * Helper: test regexes quickly
- */
 function rx(re, s) {
   return re.test(s);
 }
 
-/**
- * Clean top comment: ignore lines that are preprocessor includes (#include <...>)
- * and trim common comment markers.
- */
 function cleanTopComment(raw) {
   if (!raw) return "";
-  // if looks like include / pragma / define -> ignore
   const first = raw.split(/\r?\n/)[0].trim();
   if (/^#\s*include\b/i.test(first) || /^#\s*(pragma|define)\b/i.test(first))
     return "";
-  // remove leading comment tokens
   return raw.replace(/^\/\*+|^\*+|^\/\/+|^#+\s*/gm, "").trim();
 }
 
-/**
- * Build a user-friendly problem title from detected hints.
- */
 function inferProblemTitle(hints, topComment) {
-  // if topComment (clean) exists, prefer first short sentence
   if (topComment) {
     const s = topComment.split(/\r?\n/)[0].trim();
     if (s.length > 5 && s.length < 200 && !/^author:?\b/i.test(s)) {
@@ -36,9 +23,11 @@ function inferProblemTitle(hints, topComment) {
     }
   }
 
-  // Map combinations -> friendly titles
   const h = hints.join(" ").toLowerCase();
 
+  if (/binary search|binarysearch|mid|left <= right|low <= high/.test(h)) {
+    return "Binary Search (likely)";
+  }
   if (/sorting/.test(h) && /in-place swap/.test(h) && /nested loops/.test(h)) {
     return "Selection Sort (likely)";
   }
@@ -64,7 +53,6 @@ function inferProblemTitle(hints, topComment) {
     return "Quadratic-time pattern (nested loops)";
   }
 
-  // generic fallback using first hint
   if (hints.length) {
     return `${
       hints[0][0].toUpperCase() + hints[0].slice(1)
@@ -74,17 +62,28 @@ function inferProblemTitle(hints, topComment) {
   return "Problem (not confidently inferred)";
 }
 
-/**
- * Produce a short but useful pseudocode snippet based on hints.
- * Keep it readable and short.
- */
 function buildPseudocode(hints) {
   const h = hints.join(" ").toLowerCase();
 
-  if (
-    /selection sort/i.test(h) ||
-    (/sorting/.test(h) && /in-place swap/.test(h) && /nested loops/.test(h))
-  ) {
+  if (/binary search|binarysearch|mid|left <= right|low <= high/.test(h)) {
+    return [
+      "function binary_search(arr, target):",
+      "    left = 0",
+      "    right = n - 1",
+      "    while left <= right:",
+      "        mid = left + (right - left) // 2",
+      "        if arr[mid] == target:",
+      "            return mid",
+      "        elif arr[mid] < target:",
+      "            left = mid + 1",
+      "        else:",
+      "            right = mid - 1",
+      "    return -1",
+    ].join("\n");
+  }
+
+  if (/selection sort/i.test(h) ||
+    (/sorting/.test(h) && /in-place swap/.test(h) && /nested loops/.test(h))) {
     return [
       "for i from 0 to n-2:",
       "    minIndex = i",
@@ -156,7 +155,6 @@ function buildPseudocode(hints) {
     ].join("\n");
   }
 
-  // fallback generic pseudocode
   return [
     "Parse input",
     "Apply the main algorithmic idea inferred from the code",
@@ -164,10 +162,11 @@ function buildPseudocode(hints) {
   ].join("\n");
 }
 
-/**
- * Infer complexity conservatively from detected patterns.
- */
 function inferComplexity(nestedLoop, hints) {
+  const h = hints.join(" ").toLowerCase();
+  if (/binary search|binarysearch|mid|left <= right|low <= high/.test(h)) {
+    return "Time: O(log n) (heuristic). Space: O(1).";
+  }
   if (nestedLoop)
     return "Time: O(n^2) (heuristic). Space: O(1) or as used in code.";
   if (hints.some((s) => /dynamic programming|dp/.test(s)))
@@ -179,49 +178,42 @@ function inferComplexity(nestedLoop, hints) {
   return "Time: unknown (heuristic). Space: unknown (heuristic).";
 }
 
-/**
- * Collect edge-cases using small heuristics and patterns.
- */
 function collectEdgeCases(snippet) {
   const cases = new Set(["empty input", "single element", "duplicates"]);
-  // explicit zero-length checks
   if (
     /\bif\s*\(\s*n\s*==\s*0\s*\)/i.test(snippet) ||
     /\bif\s*\(\s*len\(/i.test(snippet)
-  ) {
+  )
     cases.add("zero-length input / n == 0");
-  }
-  // negative values
-  if (
-    /\b<\s*0\b/.test(snippet) ||
-    (/\bif\s*\(\s*arr\[/.test(snippet) && /\b<\s*0\b/.test(snippet))
-  ) {
+  if (/\b<\s*0\b/.test(snippet) || (/\bif\s*\(\s*arr\[/.test(snippet) && /\b<\s*0\b/.test(snippet)))
     cases.add("negative numbers present or handled");
-  }
-  // null / None / nullptr
   if (/\bnull\b|\bnullptr\b|\bNone\b/.test(snippet))
     cases.add("null / None handling");
-  // recursion -> stack depth
   if (
     /\brecurs(e|ion)\b|function\s+\w+\(.*\)\s*{[\s\S]*\breturn\s+\w+\(/i.test(
       snippet
     ) ||
     /\breturn .* \w+\(.*\).*;/i.test(snippet)
-  ) {
+  )
     cases.add("recursion -> watch stack depth / base cases");
-  }
-  // maps / unordered_map -> missing-key handling
   if (/\bunordered_map\b|\bmap<|std::map\b|\bdict\b/.test(snippet))
     cases.add("missing-key / map lookup handling");
-  // integer overflow checks (small)
   if (/\bINT_MAX\b|\bLONG_MAX\b|overflow/i.test(snippet))
     cases.add("overflow risk (large values)");
+  // binary-search edge cases
+
+  if (
+    /\bleft\b|\bright\b|\bmid\b/.test(snippet) &&
+    /\bwhile\s*\(.*<=.*\)/.test(snippet)
+  ) {
+    cases.add("array must be sorted for binary search to work correctly");
+    cases.add(
+      "off-by-one errors (left/right indices) should be handled carefully"
+    );
+  }
   return Array.from(cases);
 }
 
-/**
- * Main exported function
- */
 export async function generateApproach(code, filePath) {
   const snippet = typeof code === "string" ? code.slice(0, MAX_CODE_CHARS) : "";
   const ext = path
@@ -230,7 +222,6 @@ export async function generateApproach(code, filePath) {
     .toLowerCase();
   const language = ext || "unknown";
 
-  // top-of-file small sample for comment detection
   const topSample = snippet.split(/\r?\n/).slice(0, 40).join("\n");
   const topCommentRaw =
     (topSample.match(/(\/\*[\s\S]*?\*\/)|(^\/\/.*(\n\/\/.*){0,10})/m) || [
@@ -238,8 +229,14 @@ export async function generateApproach(code, filePath) {
     ])[0] || "";
   const topComment = cleanTopComment(topCommentRaw);
 
-  // hints
   const hints = [];
+  if (
+    rx(
+      /\bbinary\b|binarySearch|binarysearch|mid\b|left\b|right\b|low\b|high\b/i,
+      snippet
+    )
+  )
+    hints.push("binary search");
   if (rx(/\bsort\b|std::sort|Arrays\.sort|Collections\.sort/i, snippet))
     hints.push("sorting");
   if (rx(/\bswap\b|std::swap|\btemp\b|\btmp\b/i, snippet))
@@ -255,16 +252,13 @@ export async function generateApproach(code, filePath) {
   if (rx(/\brecurs(e|ion)\b|\breturn .* \w+\(/i, snippet))
     hints.push("recursive");
 
-  // nested loop detection (conservative)
   const nestedLoop =
     rx(/for\s*\(.*\)\s*{[^}]*for\s*\(.*\)\s*{/s, snippet) ||
     rx(/for .* in .*:\s*\n\s+for .* in .*:/, snippet);
   if (nestedLoop) hints.push("nested loops");
 
-  // Infer a human-friendly title
   const problem = inferProblemTitle(hints, topComment);
 
-  // Approach: combine top comment + heuristic summary
   const approachParts = [];
   if (topComment) approachParts.push(`Notes from file header:\n${topComment}`);
   const hintSummary = hints.length
@@ -275,46 +269,45 @@ export async function generateApproach(code, filePath) {
     approachParts.push("Detected nested loops — main pass may be quadratic.");
   const approach = approachParts.join("\n\n");
 
-  // Pseudocode
   const pseudocode = buildPseudocode(hints);
-
-  // Complexity
   const complexity = inferComplexity(nestedLoop, hints);
-
-  // Edge cases
   const edgeCases = collectEdgeCases(snippet);
-  // Build examples (simple demonstration based on detected hints)
-  let examples = [];
 
-  if (hints.includes("sorting")) {
+  // Examples generation (simple tailored examples)
+  let examples = [];
+  if (hints.includes("binary search")) {
     examples = [
       {
-        input: "5\n4 1 3 9 7",
+        input: "n=5 target=7\narr: 1 3 5 7 9",
+        output: "index 3",
+        note: "Sorted array required; returns index of target or -1",
+      },
+    ];
+  } else if (hints.includes("sorting")) {
+    examples = [
+      {
+        input: "n=5\n4 1 3 9 7",
         output: "1 3 4 7 9",
-        note: "Demonstrates sorting ascending using the inferred algorithm.",
-      },
-    ];
-  } else if (hints.includes("DFS")) {
-    examples = [
-      {
-        input: "Graph: 1-2, 1-3, 2-4",
-        output: "DFS order: 1 2 4 3",
-        note: "Typical DFS traversal output.",
-      },
-    ];
-  } else if (hints.includes("dynamic programming")) {
-    examples = [
-      {
-        input: "n = 5 (Fibonacci)",
-        output: "5",
-        note: "DP example demonstrating bottom-up computation.",
+        note: "Ascending sort example",
       },
     ];
   }
-  // Explanation Block ( Human Friendly )
-  let explanation = "";
 
-  if (
+  let explanation = "";
+  if (/binary search|binarysearch/.test(hints.join(" ").toLowerCase())) {
+    explanation = [
+      "Binary search finds an element by repeatedly halving the search interval.",
+      "",
+      "● **Why time is O(log n):**",
+      "   Each comparison halves the search space — so the number of steps grows logarithmically.",
+      "",
+      "● **Why array must be sorted:**",
+      "   Binary search relies on ordering: comparisons tell which half can be discarded.",
+      "",
+      "● **Common pitfalls:**",
+      "   Off-by-one in left/right updates and integer overflow when computing mid unless done safely (mid = left + (right-left)/2).",
+    ].join("\n");
+  } else if (
     /selection sort/i.test(problem) ||
     (hints.includes("sorting") &&
       hints.includes("in-place swap") &&
@@ -325,32 +318,17 @@ export async function generateApproach(code, filePath) {
       "",
       "● **Why it does n−1 swaps:**",
       "   Only one swap happens per outer loop iteration — putting the chosen minimum into its correct place.",
-      "   Even if the element is already in the right place, that's still at most 1 swap per iteration → worst case n−1 swaps.",
       "",
       "● **Why comparisons are O(n²):**",
       "   For each index i, you scan the remaining part of the array to find the minimum.",
-      "   That means:",
-      "      (n−1) + (n−2) + (n−3) + ... + 1 comparisons.",
-      "   This forms an arithmetic series equal to n(n−1)/2 → O(n²).",
-      "",
-      "● **Key intuition:**",
-      "   Selection Sort minimizes swaps but does a full scan for every position, making it consistently quadratic.",
+      "   (n−1) + (n−2) + ... + 1 = n(n−1)/2 → O(n²).",
     ].join("\n");
-  } else if (hints.includes("DFS")) {
-    explanation =
-      "DFS explores as deep as possible along each branch before backtracking. Useful for tree/graph traversal, component detection, and path exploration.";
-  } else if (hints.includes("dynamic programming")) {
-    explanation =
-      "Dynamic Programming solves problems by breaking them into overlapping subproblems and storing results to avoid recomputation.";
   }
 
-  // Code output safe
   const codeOut =
     code.length > MAX_CODE_CHARS
       ? code.slice(0, MAX_CODE_CHARS) + "\n/* TRUNCATED */"
       : code;
-
-  // Final result matching spec (title has no extension)
   const title = path.basename(filePath || "unknown").replace(/\.[^/.]+$/, "");
 
   return {

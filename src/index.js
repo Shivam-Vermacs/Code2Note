@@ -2,6 +2,7 @@
 import fs from "fs/promises";
 import fsSync from "fs";
 import path from "path";
+import "dotenv/config";
 import { generateApproach } from "./generate.js";
 
 function usageAndExit() {
@@ -108,6 +109,7 @@ async function main() {
   }
 
   // Write or preview
+  // Write or preview
   if (!opts.noSave) {
     try {
       await fs.writeFile(outPath, JSON.stringify(result, null, 2), "utf8");
@@ -123,7 +125,19 @@ async function main() {
   }
 
   console.log("Problem (preview):", previewLine(result));
-  process.exit(0);
+
+  // Optional: if Notion env set, post automatically and print page id/url
+  try {
+    const { NOTION_TOKEN, NOTION_PARENT_PAGE_ID } = process.env;
+    if (NOTION_TOKEN && NOTION_PARENT_PAGE_ID) {
+      // dynamic import to avoid requiring in non-notion flows
+      const { postFixtureToNotion } = await import("./notion.js");
+      const page = await postFixtureToNotion(result);
+      console.log("Posted to Notion. Page id:", page.id);
+    }
+  } catch (err) {
+    console.warn("Notion post failed:", err && err.message ? err.message : err);
+  }
 }
 
 // run
