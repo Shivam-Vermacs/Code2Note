@@ -1,15 +1,11 @@
-// src/notion.js
+
 import { Client } from "@notionhq/client";
 
-/**
- * Map file extension / language hints to Notion code block language names.
- * Add mappings here as needed.
- */
 function mapToNotionLanguage(langHint) {
   if (!langHint || typeof langHint !== "string") return "plain text";
+
   const s = langHint.toLowerCase().trim();
 
-  // common mappings
   const map = {
     js: "javascript",
     javascript: "javascript",
@@ -55,59 +51,74 @@ function mapToNotionLanguage(langHint) {
 
   if (map[s]) return map[s];
 
-  // Some fuzzier matches
   if (s.includes("c++") || s.includes("cpp")) return "c++";
   if (s.includes("c#") || s.includes("csharp")) return "c#";
   if (s.includes("python") || s === "py") return "python";
   if (s.includes("js") || s.includes("javascript")) return "javascript";
   if (s.includes("ts") || s.includes("typescript")) return "typescript";
   if (s.includes("java")) return "java";
-  if (s.includes("html")) return "html";
-  if (s.includes("json")) return "json";
-  if (s.includes("xml")) return "xml";
-  if (s.includes("sql")) return "sql";
 
-  // fallback
   return "plain text";
 }
 
-/**
- * Convert fixture object to Notion child blocks.
- * Uses correct Notion API shapes:
- * - heading/paragraph/bulleted_list_item use `rich_text`
- * - code blocks use `rich_text` inside `code` and valid `language` names
- */
+// Splits text into paragraph units based on blank lines.
+
+function splitIntoParagraphs(text) {
+  if (!text) return [];
+
+  return text
+    .split(/\n\n+/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+}
+
+// Converts text into Notion paragraph blocks.
+
+function createTextBlock(text) {
+  if (!text) return [];
+
+  return splitIntoParagraphs(text).map((para) => ({
+    object: "block",
+    type: "paragraph",
+    paragraph: {
+      rich_text: [{ type: "text", text: { content: para } }],
+    },
+  }));
+}
+
+// Converts a generated fixture into Notion-compatible blocks.
+ 
 function fixtureToBlocks(fx) {
   const blocks = [];
   const notionLang = mapToNotionLanguage(fx.language);
 
-  // Problem title as H1
-  blocks.push({
-    object: "block",
-    type: "heading_1",
-    heading_1: {
-      rich_text: [
-        {
-          type: "text",
-          text: { content: fx.problem || fx.title || "Code Note" },
-        },
-      ],
-    },
-  });
+ 
 
-  // Short approach line (first paragraph)
-  if (fx.approach) {
-    const firstLine = (fx.approach.split("\n")[0] || "").slice(0, 200);
-    blocks.push({
-      object: "block",
-      type: "paragraph",
-      paragraph: {
-        rich_text: [{ type: "text", text: { content: firstLine } }],
-      },
-    });
+  if (fx.metadata || fx.problem) {
+    let metaText = "";
+
+    if (fx.metadata) {
+      const date = new Date(fx.metadata.generatedAt).toLocaleString();
+      metaText = `Generated: ${date} | Mode: ${fx.metadata.mode} | Source: ${fx.metadata.sourceFile}`;
+    }
+
+    if (fx.problem && fx.problem !== "not inferred") {
+      if (metaText) metaText += "\n\n";
+      metaText += `Problem: ${fx.problem}`;
+    }
+
+    if (metaText) {
+      blocks.push({
+        object: "block",
+        type: "callout",
+        callout: {
+          rich_text: [{ type: "text", text: { content: metaText } }],
+          color: "blue_background",
+        },
+      });
+    }
   }
 
-  // Approach full
   if (fx.approach) {
     blocks.push({
       object: "block",
@@ -116,17 +127,10 @@ function fixtureToBlocks(fx) {
         rich_text: [{ type: "text", text: { content: "Approach" } }],
       },
     });
-    const paras = fx.approach.split(/\n\s*\n/);
-    paras.forEach((p) => {
-      blocks.push({
-        object: "block",
-        type: "paragraph",
-        paragraph: { rich_text: [{ type: "text", text: { content: p } }] },
-      });
-    });
+
+    blocks.push(...createTextBlock(fx.approach));
   }
 
-  // Pseudocode
   if (fx.pseudocode) {
     blocks.push({
       object: "block",
@@ -135,17 +139,23 @@ function fixtureToBlocks(fx) {
         rich_text: [{ type: "text", text: { content: "Pseudocode" } }],
       },
     });
+
+    const pseudocode = fx.pseudocode
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .join("\n");
+
     blocks.push({
       object: "block",
       type: "code",
       code: {
-        rich_text: [{ type: "text", text: { content: fx.pseudocode } }],
-        language: notionLang, // use mapped language for pseudocode; usually plain text or code language
+        rich_text: [{ type: "text", text: { content: pseudocode } }],
+        language: "plain text",
       },
     });
   }
 
-  // Complexity
   if (fx.complexity) {
     blocks.push({
       object: "block",
@@ -154,36 +164,30 @@ function fixtureToBlocks(fx) {
         rich_text: [{ type: "text", text: { content: "Complexity" } }],
       },
     });
-    blocks.push({
-      object: "block",
-      type: "paragraph",
-      paragraph: {
-        rich_text: [{ type: "text", text: { content: fx.complexity } }],
-      },
-    });
+
+    blocks.push(...createTextBlock(fx.complexity));
   }
 
-  // Edge cases as bullets
   if (Array.isArray(fx.edgeCases) && fx.edgeCases.length) {
     blocks.push({
       object: "block",
       type: "heading_2",
       heading_2: {
-        rich_text: [{ type: "text", text: { content: "Edge cases" } }],
+        rich_text: [{ type: "text", text: { content: "Edge Cases" } }],
       },
     });
+
     fx.edgeCases.forEach((ec) => {
       blocks.push({
         object: "block",
         type: "bulleted_list_item",
         bulleted_list_item: {
-          rich_text: [{ type: "text", text: { content: ec } }],
+          rich_text: [{ type: "text", text: { content: ec.trim() } }],
         },
       });
     });
   }
 
-  // Examples
   if (Array.isArray(fx.examples) && fx.examples.length) {
     blocks.push({
       object: "block",
@@ -194,13 +198,12 @@ function fixtureToBlocks(fx) {
     });
 
     fx.examples.forEach((ex, idx) => {
-      // Example input
       blocks.push({
         object: "block",
         type: "heading_3",
         heading_3: {
           rich_text: [
-            { type: "text", text: { content: `Example ${idx + 1} — input` } },
+            { type: "text", text: { content: `Example ${idx + 1} — Input` } },
           ],
         },
       });
@@ -213,13 +216,12 @@ function fixtureToBlocks(fx) {
         },
       });
 
-      // Example output
       blocks.push({
         object: "block",
         type: "heading_3",
         heading_3: {
           rich_text: [
-            { type: "text", text: { content: `Example ${idx + 1} — output` } },
+            { type: "text", text: { content: `Example ${idx + 1} — Output` } },
           ],
         },
       });
@@ -244,77 +246,103 @@ function fixtureToBlocks(fx) {
     });
   }
 
-  // Explanation (split into paragraphs)
   if (fx.explanation) {
     blocks.push({
       object: "block",
       type: "heading_2",
       heading_2: {
-        rich_text: [{ type: "text", text: { content: "Explanation" } }],
+        rich_text: [
+          { type: "text", text: { content: "Detailed Explanation" } },
+        ],
       },
     });
-    const paras = fx.explanation.split(/\n\s*\n/);
-    paras.forEach((p) => {
-      blocks.push({
-        object: "block",
-        type: "paragraph",
-        paragraph: { rich_text: [{ type: "text", text: { content: p } }] },
-      });
-    });
+
+    blocks.push(...createTextBlock(fx.explanation));
   }
 
-  // Full solution code
   if (fx.code) {
     blocks.push({
       object: "block",
       type: "heading_2",
       heading_2: {
-        rich_text: [{ type: "text", text: { content: "Solution (code)" } }],
+        rich_text: [{ type: "text", text: { content: "Solution Code" } }],
       },
     });
-    blocks.push({
-      object: "block",
-      type: "code",
-      code: {
-        rich_text: [{ type: "text", text: { content: fx.code } }],
-        language: notionLang,
-      },
-    });
+
+    const maxCodeLength = 2000;
+    if (fx.code.length > maxCodeLength) {
+      const lines = fx.code.split("\n");
+      let currentChunk = "";
+
+      lines.forEach((line) => {
+        if ((currentChunk + line + "\n").length > maxCodeLength) {
+          blocks.push({
+            object: "block",
+            type: "code",
+            code: {
+              rich_text: [{ type: "text", text: { content: currentChunk } }],
+              language: notionLang,
+            },
+          });
+          currentChunk = `${line}\n`;
+        } else {
+          currentChunk += `${line}\n`;
+        }
+      });
+
+      if (currentChunk.trim()) {
+        blocks.push({
+          object: "block",
+          type: "code",
+          code: {
+            rich_text: [{ type: "text", text: { content: currentChunk } }],
+            language: notionLang,
+          },
+        });
+      }
+    } else {
+      blocks.push({
+        object: "block",
+        type: "code",
+        code: {
+          rich_text: [{ type: "text", text: { content: fx.code } }],
+          language: notionLang,
+        },
+      });
+    }
   }
 
   return blocks;
 }
 
 /**
- * Post a fixture object to Notion as a child page.
- * Returns the created page object (as returned by Notion).
+ * Posts a fixture to Notion as a new page.
  */
 export async function postFixtureToNotion(fixture) {
   const token = process.env.NOTION_TOKEN;
   const parent = process.env.NOTION_PARENT_PAGE_ID;
+
   if (!token || !parent) {
     throw new Error(
-      "Set NOTION_TOKEN and NOTION_PARENT_PAGE_ID env vars to post to Notion."
+      "Set NOTION_TOKEN and NOTION_PARENT_PAGE_ID environment variables."
     );
   }
 
   const notion = new Client({ auth: token });
   const children = fixtureToBlocks(fixture);
 
-  const res = await notion.pages.create({
+  return notion.pages.create({
     parent: { page_id: parent },
     properties: {
       title: {
         title: [
           {
             type: "text",
-            text: { content: fixture.title || fixture.problem || "Code Note" },
+            text: { content: fixture.title || "Code Note" },
           },
         ],
       },
     },
     children,
   });
-
-  return res;
 }

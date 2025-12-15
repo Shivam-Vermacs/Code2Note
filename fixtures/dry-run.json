@@ -1,0 +1,12 @@
+{
+  "title": "dry-run",
+  "language": "plain",
+  "problem": "dry-run placeholder",
+  "approach": "dry-run: LLM calls disabled",
+  "pseudocode": "",
+  "complexity": "",
+  "edgeCases": [],
+  "examples": [],
+  "explanation": "",
+  "code": "#include <bits/stdc++.h>\r\nusing namespace std;\r\n\r\nint main()\r\n{\r\n    int t;\r\n    cin >> t;\r\n    while (t--)\r\n    {\r\n        int n;\r\n        cin >> n;\r\n        int a[n];\r\n        int count = 0;\r\n        for (int i = 0; i < n; i++)\r\n        {\r\n            cin >> a[i];\r\n        }\r\n        for (int i = 1; i < n; i++)\r\n        {\r\n            if ((a[i - 1] % 2 == 0 && a[i] % 2 == 0) || (a[i - 1] % 2 != 0 && a[i] % 2 != 0))\r\n            {\r\n                a[i - 1] = a[i] * a[i - 1];\r\n                count++;\r\n            }\r\n        }\r\n        cout << count << endl;\r\n    }\r\n}"
+}

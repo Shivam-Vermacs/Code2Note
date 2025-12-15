@@ -1,0 +1,27 @@
+{
+  "title": "Binary Search Algorithm",
+  "language": "cpp",
+  "problem": "The problem is to find an element in a sorted array using an efficient algorithm. The goal is to locate the target element in the array and return its index.",
+  "approach": "The binary search algorithm is a divide-and-conquer approach that works by repeatedly dividing the search interval in half. \n\nThe algorithm starts by finding the middle element of the array and comparing it to the target element. If the middle element is equal to the target, the algorithm returns the index of the middle element. \n\nIf the middle element is less than the target, the algorithm repeats the process on the right half of the array. If the middle element is greater than the target, the algorithm repeats the process on the left half of the array. This process continues until the target element is found or the search interval is empty.",
+  "pseudocode": "1. Initialize the left and right pointers to the start and end of the array\n2. Calculate the middle index of the array\n3. Compare the middle element to the target element\n4. If the middle element is equal to the target, return the middle index\n5. If the middle element is less than the target, repeat the process on the right half of the array",
+  "complexity": "Time Complexity: O(log n) - because the algorithm divides the search interval in half at each step, reducing the number of elements to search by a factor of 2. \nSpace Complexity: O(1) - because the algorithm only uses a constant amount of space to store the left, right, and middle indices",
+  "edgeCases": [
+    "Edge case 1: The target element is not in the array. In this case, the algorithm returns -1 to indicate that the element was not found.",
+    "Edge case 2: The array is empty. In this case, the algorithm returns -1 to indicate that the element was not found.",
+    "Edge case 3: The target element is at the start or end of the array. In this case, the algorithm returns the correct index of the target element."
+  ],
+  "examples": [
+    {
+      "input": "Array: [1, 2, 3, 4, 5], Target: 3",
+      "output": "Index: 2",
+      "note": "The algorithm finds the target element at index 2 because the middle element (3) is equal to the target element."
+    }
+  ],
+  "explanation": "The implementation of the binary search algorithm starts by initializing the left and right pointers to the start and end of the array. \n\nThe algorithm then enters a loop that continues until the left pointer is greater than the right pointer. Inside the loop, the algorithm calculates the middle index of the array and compares the middle element to the target element. \n\nIf the middle element is equal to the target, the algorithm returns the middle index. If the middle element is less than the target, the algorithm updates the left pointer to the middle index + 1. If the middle element is greater than the target, the algorithm updates the right pointer to the middle index - 1. \n\nThe algorithm uses a while loop to repeat the process until the target element is found or the search interval is empty. The algorithm returns -1 to indicate that the element was not found if the search interval is empty.",
+  "code": "#include <bits/stdc++.h>\r\nusing namespace std;\r\n\r\nint binarySearch(vector<int> &arr, int target)\r\n{\r\n    int left = 0, right = arr.size() - 1;\r\n\r\n    while (left <= right)\r\n    {\r\n        int mid = left + (right - left) / 2;\r\n\r\n        if (arr[mid] == target)\r\n        {\r\n            return mid;\r\n        }\r\n        else if (arr[mid] < target)\r\n        {\r\n            left = mid + 1;\r\n        }\r\n        else\r\n        {\r\n            right = mid - 1;\r\n        }\r\n    }\r\n    return -1;\r\n}\r\n\r\nint main()\r\n{\r\n    int t;\r\n    cin >> t;\r\n\r\n    while (t--)\r\n    {\r\n        int n, target;\r\n        cin >> n >> target;\r\n\r\n        vector<int> arr(n);\r\n        for (int i = 0; i < n; i++)\r\n        {\r\n            cin >> arr[i];\r\n        }\r\n\r\n        int result = binarySearch(arr, target);\r\n\r\n        if (result != -1)\r\n        {\r\n            cout << \"Element found at index: \" << result << endl;\r\n        }\r\n        else\r\n        {\r\n            cout << \"Element not found\" << endl;\r\n        }\r\n    }\r\n\r\n    return 0;\r\n}",
+  "metadata": {
+    "generatedAt": "2025-12-14T17:26:43.642Z",
+    "mode": "llm",
+    "sourceFile": "examples/binary_search.cpp"
+  }
+}

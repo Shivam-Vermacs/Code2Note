@@ -1,19 +1,34 @@
 {
-  "name": "code2notion",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "name": "code2notion-js",
+  "version": "2.0.0",
+  "description": "Convert code to study notes with AI and send to Notion",
+  "main": "src/index.js",
   "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "node src/index.js"
+    "start": "node src/index.js",
+    "test": "node src/index.js examples/A_Everybody_Likes_Good_Arrays.cpp --no-save --no-notion",
+    "test:llm": "node src/index.js examples/A_Everybody_Likes_Good_Arrays.cpp --mode=llm --no-save",
+    "test:hybrid": "node src/index.js examples/A_Everybody_Likes_Good_Arrays.cpp --mode=hybrid --no-save",
+    "test:heuristic": "node src/index.js examples/A_Everybody_Likes_Good_Arrays.cpp --mode=heuristic --no-save"
   },
-  "keywords": [],
+  "keywords": [
+    "notion",
+    "code",
+    "notes",
+    "llm",
+    "ai",
+    "groq",
+    "study",
+    "algorithms"
+  ],
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@huggingface/inference": "^4.13.5",
     "@notionhq/client": "^5.4.0",
     "dotenv": "^17.2.3",
+    "grok-sdk": "^0.0.1-security",
+    "groq-sdk": "^0.37.0",
     "node-fetch": "^3.3.2"
   }
 }
